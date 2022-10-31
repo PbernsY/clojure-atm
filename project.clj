@@ -10,4 +10,5 @@
                  [com.appsflyer/donkey "0.5.2"]]
   :main ^:skip-aot clojure-atm.core
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}})
+  :profiles {:uberjar {:aot :all
+                       :name "clojure-atm.jar"}})

@@ -121,7 +121,8 @@
 
              {:allow-withdrawal? false
               :reasons           {:requested-amount-less-than-atm-total? {:description "The amount requested 1000 is larger than atm total of 1"
-                                                                          :passed?     false}}})))
+                                                                          :passed?     false}}
+              :status            400})))
     (testing "Attempting to withdraw with an incorrect pin and amount larger than the atm fails"
       (is (= (account/allow-withdrawal? 1000
                                         123456789
@@ -129,4 +130,5 @@
                                         atm)
              {:allow-withdrawal? false
               :reasons           {:valid-pin? {:description "The pin 12345 supplied for account number 123456789 is incorrect"
-                                               :passed?     false}}})))))
+                                               :passed?     false}}
+              :status            400})))))
