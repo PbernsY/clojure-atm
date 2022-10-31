@@ -20,3 +20,5 @@ The repository contains test-FUNCTIONALITY files. These can be used by
 Where URI is one of the following -> *withdraw* , *deposit* , *balance*
 
 The test files contain the structure of the JSON request the API is expecting, modification of these is acceptable and appropriate error messages will be returned if there is a problem with the request
+
+``lein test `` Will run all test files in the repository
