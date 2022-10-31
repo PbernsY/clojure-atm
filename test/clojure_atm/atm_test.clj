@@ -106,40 +106,47 @@
                               123456789
                               atm)
            {:balance        750
-            :note->quantity {50 1}}))
+            :note->quantity {50 1}
+            :status         200}))
     (is (= (atm/minimum-notes 20
                               123456789
                               atm)
            {:balance        730
-            :note->quantity {20 1}}))
+            :note->quantity {20 1}
+            :status         200}))
     (is (= (atm/minimum-notes 10
                               123456789
                               atm)
            {:balance        720
-            :note->quantity {10 1}}))
+            :note->quantity {10 1}
+            :status         200}))
     (is (= (atm/minimum-notes 5
                               123456789
                               atm)
            {:balance        715
-            :note->quantity {5 1}}))
+            :note->quantity {5 1}
+            :status         200}))
     (is (= (atm/minimum-notes 25
                               123456789
                               atm)
            {:balance        690
             :note->quantity {20 1
-                             5  1}}))
+                             5  1}
+            :status         200}))
     (is (= (atm/minimum-notes 100
                               123456789
                               atm)
            {:balance        590
-            :note->quantity {50 2}}))
+            :note->quantity {50 2}
+            :status         200}))
     (is (= (atm/minimum-notes 1000
                               123456789
                               atm)
            {:balance        -410
             :note->quantity {10 9
                              20 28
-                             50 7}}))
+                             50 7}
+            :status         200}))
     (testing "ATM was updated accurately with the above withdrawals"
       (is (= @atm
              {:accounts {123456789 {:balance   -410
@@ -172,7 +179,7 @@
       (is (= (count (atm/minimum-notes 1500
                                        123456789
                                        atm))
-             2)))))
+             3)))))
 
 (deftest integration-testing-withdrawing-money
   (reset! atm {:total 1500
@@ -192,7 +199,8 @@
                                1234
                                atm)
            {:balance        700
-            :note->quantity {50 2}}))
+            :note->quantity {50 2}
+            :status         200}))
     (is (= (get-in @atm [:accounts 123456789 :balance])
            700)))
   (testing "Testing the overdraft facility and ensuring it is respected"
@@ -200,11 +208,45 @@
                                123456789
                                1234
                                atm)
-           {:balance              -200
-            :note->quantity  {20 25
-                              50 8}}))
+           {:balance        -200
+            :note->quantity {20 25
+                             50 8}
+            :status         200}))
     (is (= (get-in @atm [:accounts 123456789 :balance])
            -200)))
+  (reset! atm {:total 1500
+               :notes {:50 {:value 50 :count 10}
+                       :20 {:value 20 :count 30}
+                       :10 {:value 10 :count 30}
+                       :5 {:value 5 :count 20}}
+               :accounts {123456789 {:pin 1234
+                                     :balance 800
+                                     :overdraft 200}
+                          987654321 {:pin 4321
+                                     :balance 1230
+                                     :overdraft 150}}})
+  (testing "Testing that only multiples of 5 can be withdrawn"
+    (is (= (atm/withdraw-money 122
+                               123456789
+                               1234
+                               atm)
+           {:allow-withdrawal? false
+            :reasons           {:dispensable-amount? {:description "The amount requested 122 is not dispensable using 50, 20 , 10 or 5 denominations"
+                                                      :passed?     false}}
+            :status            400}))
+    (is (= (get-in @atm [:accounts 123456789 :balance])
+           800)))
+  (reset! atm {:total 1500
+               :notes {:50 {:value 50 :count 10}
+                       :20 {:value 20 :count 30}
+                       :10 {:value 10 :count 30}
+                       :5 {:value 5 :count 20}}
+               :accounts {123456789 {:pin 1234
+                                     :balance -200
+                                     :overdraft 200}
+                          987654321 {:pin 4321
+                                     :balance 1230
+                                     :overdraft 150}}})
   (testing "Trying to withdraw when an account is exhausted fails"
     (is (= (atm/withdraw-money 200
                                123456789
@@ -212,7 +254,8 @@
                                atm)
            {:allow-withdrawal? false
             :reasons           {:requested-amount-less-than-account-total? {:description "The amount requested is larger than the total withdrawable amount from your account of 0"
-                                                                            :passed?     false}}})))
+                                                                            :passed?     false}}
+            :status            400})))
   (reset! atm {:total 1
                :notes {:50 {:value 50 :count 10}
                        :20 {:value 20 :count 30}
@@ -231,7 +274,8 @@
                                atm)
            {:allow-withdrawal? false
             :reasons           {:requested-amount-less-than-atm-total? {:description "The amount requested 200 is larger than atm total of 1"
-                                                                        :passed?     false}}})))
+                                                                        :passed?     false}}
+            :status            400})))
   (testing "Trying to withdraw balance + OD that exceeds total available fails"
     (reset! atm {:total 1500
                  :notes {:50 {:value 50 :count 10}
@@ -250,7 +294,8 @@
                                atm)
            {:allow-withdrawal? false
             :reasons           {:requested-amount-less-than-atm-total? {:description "The amount requested 1700 is larger than atm total of 1500"
-                                                                        :passed?     false}}})))
+                                                                        :passed?     false}}
+            :status            400})))
   (testing "Trying to withdraw with an account that doesnt exist fails"
     (reset! atm {:total 1500
                  :notes {:50 {:value 50 :count 10}
@@ -268,7 +313,8 @@
                                1234
                                atm)
            {:allow-withdrawal? false
-            :reason            "Invalid/Unknown account number 123456"}))))
+            :reason            "Invalid/Unknown account number 123456"
+            :status            400}))))
 
 (deftest testing-account-balance
   (testing "Account balance is returned once verification succeeds"
@@ -277,6 +323,7 @@
                                 atm)
            {:account-number            123456789
             :balance                   0
+            :status                    200
             :total-withdrawable-amount 200}))
     (reset! atm {:total 1500
                  :notes {:50 {:value 50 :count 10}
@@ -295,6 +342,7 @@
                                   atm)
              {:account-number            123456789
               :balance                   1500
+              :status                    200
               :total-withdrawable-amount 1700})))
     (testing "Supplying invalid details wont expose customer balance"
       (is (= (atm/account-balance 123456789
@@ -302,4 +350,54 @@
                                   atm)
              {:allow-balance-display? false
               :reasons                {:valid-pin? {:description "The pin 1235 supplied for account number 123456789 is incorrect"
-                                                    :passed?     false}}})))))
+                                                    :passed?     false}}
+              :status                 400})))))
+
+(deftest testing-depositing-money
+  (testing "Depositting will update account total"
+    (is (= (atm/deposit-money {50 1}
+                              123456789
+                              1234
+                              atm)
+           {:account-number                    123456789
+            :balance-after-deposit             850
+            :balance-before-deposit            800
+            :status                            200
+            :total-withdrawable-after-deposit  1050
+            :total-withdrawable-before-deposit 1000}))
+    (testing "Total and notes of atm are correctly updated"
+      (let [notes-before-deposit (get @atm :notes)
+            total-before-deposit (get @atm :total)]
+        (atm/deposit-money {50 1}
+                           123456789
+                           1234
+                           atm)
+        (is (not (= notes-before-deposit
+                    (get @atm :notes))))
+        (is (= (- (get-in @atm [:notes :50 :count])
+                  (get-in notes-before-deposit [:50 :count]))
+               1))
+        (is (= (- (get @atm :total)
+                  50)
+               total-before-deposit))))
+    (testing "Testing multiple notes being deposited"
+      (let [notes-before-deposit (get @atm :notes)
+            total-before-deposit (get @atm :total)]
+        (atm/deposit-money {50 1
+                            20 1
+                            10 1
+                            5 1}
+                           123456789
+                           1234
+                           atm)
+        (is (not (= notes-before-deposit
+                    (get @atm :notes))))
+        (is (= (- (get-in @atm [:notes :50 :count])
+                  (get-in notes-before-deposit [:50 :count]))
+               1))
+        (is (= (- (get-in @atm [:notes :20 :count])
+                  (get-in notes-before-deposit [:20 :count]))
+               1))
+        (is (= (- (get @atm :total)
+                  85)
+               total-before-deposit))))))

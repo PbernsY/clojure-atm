@@ -9,10 +9,12 @@
             [com.appsflyer.donkey.result :refer [on-success]]
             [reitit.coercion.schema]
             [reitit.ring.coercion :as rrc]
+            [jsonista.core :as json]
             [reitit.ring.middleware.exception :as exception]
             [schema.core :as s])
   (:gen-class)
-  (:import (clojure.lang ExceptionInfo)))
+  (:import (clojure.lang ExceptionInfo)
+           (com.fasterxml.jackson.core JsonParseException)))
 
 (def atm (atom {:total 1500
                 :notes {:50 {:value 50 :count 10}
@@ -37,21 +39,19 @@
           :data (ex-data exception)
           :uri (:uri request)}})
 
+(derive ::error ::exception)
+(derive ::failure ::exception)
+(derive ::horror ::exception)
+
 (def exception-middleware
   (exception/create-exception-middleware
     (merge
       exception/default-handlers
-      {::error             (partial handler "error")
-
-       ::exception         (partial handler "exception")
-
-       ExceptionInfo       (partial handler "clojure-exception")
-
-       ::exception/default (partial handler "default")
-
-       ::exception/wrap    (fn [handler e request]
-                             (println "ERROR" (pr-str (:uri request)))
-                             (handler e request))})))
+      {::exception      (partial handler "exception")
+       ExceptionInfo    (partial handler "clojure-exception2")
+       :muuntaja/decode (partial handler "clojure-exception")
+       JsonParseException (partial handler "json-parse-exception")
+                        ::exception/default (partial handler "default")})))
 
 (def PositiveInt (s/constrained s/Int pos? 'PositiveInt))
 
@@ -81,7 +81,29 @@
                                                 :pin s/Int
                                                 :withdrawal-amount PositiveInt}}
                             :responses {200 {:body {:note->quantity s/->MapEntry
-                                                    :balance s/Int}}}}}]]
+                                                    :balance s/Int}}}}}]
+       ["/deposit" {:post {:handler (fn [{{notes->quantity :notes->quantity
+                                            account-number :account-number
+                                            pin :pin} :body-params}]
+                                      (let [keyword->int {:50 50 :20 20 :10 10 :5 5}
+                                            converted-notes->quantity
+                                            (reduce-kv (fn [acc key value]
+                                                         (assoc acc (key keyword->int) value))
+                                                       {}
+                                                       notes->quantity)]
+                                        (assoc default-response :body
+                                                                (atm/deposit-money converted-notes->quantity
+                                                                                   account-number
+                                                                                   pin
+                                                                                   atm))))
+                            :parameters {:body {:notes->quantity s/Any
+                                                :account-number s/Int
+                                                :pin s/Int}}
+                            :responses {200 {:body {:account-number s/Int
+                                                    :balance-after-deposit s/Int
+                                                    :balance-before-deposit s/Int
+                                                    :total-withdrawable-amount s/Int
+                                                    :total-withdrawable-after-deposit s/Int}}}}}]]
       {:data {:muuntaja   m/instance
               :coercion reitit.coercion.schema/coercion
               :middleware [munntaga/format-middleware
@@ -95,3 +117,6 @@
                                 :handler-mode :blocking}]})
       start
       (on-success (fn [_] (println "Server started listening on port 8080")))))
+
+(defn -main [& args]
+  (start-atm-server))
